@@ -2,13 +2,17 @@ const { ethers } = require("hardhat")
 
 async function main() {
 
-  const PriceDataFeed = await ethers.getContractFactory("PriceDataFeed");
-  const priceDataFeed = await PriceDataFeed.deploy(100000)
-  console.log("PriceDataFeed Address: ", priceDataFeed.address);
+  // const PriceDataFeed = await ethers.getContractFactory("PriceDataFeed");
+  // const priceDataFeed = await PriceDataFeed.deploy(100000)
+  // console.log("PriceDataFeed Address: ", priceDataFeed.address);
 
-  const QuickswapLiquidity = await ethers.getContractFactory("QuickswapLiquidity");
-  const quickswapLiquidity = await QuickswapLiquidity.deploy()
-  console.log("QuickswapLiquidity Address: ", quickswapLiquidity.address);
+  // const QuickswapLiquidity = await ethers.getContractFactory("QuickswapLiquidity");
+  // const quickswapLiquidity = await QuickswapLiquidity.deploy()
+  // console.log("QuickswapLiquidity Address: ", quickswapLiquidity.address);
+
+  const UniswapLiquidity = await ethers.getContractFactory("UniswapLiquidity");
+  const uniswapLiquidity = await UniswapLiquidity.deploy()
+  console.log("UniswapLiquidity Address: ", uniswapLiquidity.address);
 }
 
 main()
