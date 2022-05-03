@@ -1,5 +1,6 @@
 require("@nomiclabs/hardhat-waffle");
 require("@nomiclabs/hardhat-etherscan");
+require('dotenv').config();
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
@@ -17,23 +18,14 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
- module.exports = {
-  // defaultNetwork: "matic",
-  // networks: {
-  //   hardhat: {
-  //   },
-  //   matic: {
-  //     url: "https://rpc-mumbai.maticvigil.com",
-  //     accounts: ['cd2f39272b45bb64ddfc90947f19efd44e95199c14c641b31f1e952cb9f8b42c']
-  //   }
-  // },
-  defaultNetwork: "rinkeby",
+module.exports = {
+  defaultNetwork: "matic",
   networks: {
     hardhat: {
     },
-    rinkeby: {
-      url: "https://eth-rinkeby.alchemyapi.io/v2/kT2O74iAAnRY5ovq2_ZpyA56AsjrUqKm",
-      accounts: ['cd2f39272b45bb64ddfc90947f19efd44e95199c14c641b31f1e952cb9f8b42c']
+    matic: {
+      url: process.env.POLYGON_MUMBAI_RPC_PROVIDER,
+      accounts: [process.env.PRIVATE_KEY]
     }
   },
   solidity: {
@@ -46,6 +38,6 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
     }
   },
   etherscan: {
-    apiKey: "BMKX11HCZZAHMHTEEXRHQAR72EMY16K3FF",
+    apiKey: process.env.POLYGONSCAN_API_KEY,
   }
 };

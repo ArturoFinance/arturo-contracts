@@ -8,4 +8,11 @@ interface IQuickswapLiquidity {
         uint _amountA,
         uint _amountB
     ) external;
+
+    function swap(
+        address _tokenIn,
+        address _tokenOut,
+        uint _amountIn,
+        uint _amountOutMin
+    ) external;
 }

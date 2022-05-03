@@ -2,16 +2,15 @@
 pragma solidity ^0.8.4;
 
 import "./interfaces/IQuickswapLiquidity.sol";
-import '@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol';
-import '@uniswap/v2-periphery/contracts/interfaces/IERC20.sol';
+import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract QuickswapLiquidity is IQuickswapLiquidity{
+contract QuickswapLiquidity is IQuickswapLiquidity {
+    event TokensSwapped(address tokenIn, address tokenOut, address to);
     event LiquidityAddedTo(uint amountA, uint amountB, uint liquidity);
 
-    address private constant ROUTER = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;// deployed at Polygon mainnet
-    // address private constant MATIC = 0x0000000000000000000000000000000000001010;
-    // address private constant USDC = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
-    // address private constant PAIR =  0x1a2E7582a0d3c3474A2aBdd833B6E3748DF8a7fd;
+    address private constant ROUTER = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;// deployed at Polygon mainnet and testnet
+    address private constant WMATIC = 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889;
 
     constructor() {}
 
@@ -33,12 +32,44 @@ contract QuickswapLiquidity is IQuickswapLiquidity{
                 _tokenB,
                 _amountA,
                 _amountB,
-                1,
-                1,
-                address(this),
-                block.timestamp + 60
+                10000000,
+                10000000,
+                msg.sender,
+                block.timestamp + 3600 * 24
             );
 
         emit LiquidityAddedTo(amountA, amountB, liquidity);
+    }
+
+    function swap(
+        address _tokenIn,
+        address _tokenOut,
+        uint _amountIn,
+        uint _amountOutMin
+    ) external override {
+        IERC20(_tokenIn).transferFrom(msg.sender, address(this), _amountIn);
+        IERC20(_tokenIn).approve(ROUTER, _amountIn);
+
+        address[] memory path;
+        if (_tokenIn == WMATIC || _tokenOut == WMATIC) {
+            path = new address[](2);
+            path[0] = _tokenIn;
+            path[1] = _tokenOut;
+        } else {
+            path = new address[](3);
+            path[0] = _tokenIn;
+            path[1] = WMATIC;
+            path[2] = _tokenOut;
+        }
+
+        IUniswapV2Router02(ROUTER).swapExactTokensForTokens(
+            _amountIn,
+            _amountOutMin,
+            path,
+            msg.sender,
+            block.timestamp + 3600 * 24
+        );
+
+        emit TokensSwapped(_tokenIn, _tokenOut, msg.sender);
     }
 }
