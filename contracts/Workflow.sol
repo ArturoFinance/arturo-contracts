@@ -28,6 +28,60 @@ contract Workflow is KeeperCompatibleInterface {
     int public prevTokenBPrice;
     bool public newWorkflowCreated;
 
+    // Workflow related DS
+    struct Workflow {
+        uint256 workflowId;
+        string name; // to store later to a dedicated backend for gas saving
+        Action action;
+        //Actions[] action; // A workflow can be complex
+        uint256 frequency;
+        bool isPaused;
+    }
+
+    struct Action {
+        address protocol;
+        Pair pair;
+        ActionType action;
+        Trigger trigger;
+    }
+
+    enum ActionType {
+        Swap,
+        Addliquidity
+    }
+
+    struct Pair {
+        address tokenA;
+        address TokenB;
+        uint256 AmountA;
+        uint256 AmountB;
+    }
+
+    struct Trigger{
+        uint256 tokenRefPrice;
+        EventTriggerType eventTriggerType;
+        TriggerType triggerType;
+        Metric metric;
+    }
+
+    enum EventTriggerType {
+        TokenPriceInc,
+        TokenPriceDownDec
+    }
+
+    enum TriggerType {
+        Percentage, // when token price increase by X % from 
+        ApproxAmountValue
+    }
+    
+
+    struct Metric {
+        EventTriggerType triggerType;
+        uint value;
+    }
+
+    // Workflow related DS
+
     event TokensSwapped(address tokenIn, address tokenOut, address to);
     event LiquidityAddedTo(uint amountA, uint amountB, uint liquidity);
 
@@ -139,6 +193,10 @@ contract Workflow is KeeperCompatibleInterface {
     function checkUpkeep(bytes calldata /* checkData */) external view override returns (bool upkeepNeeded, bytes memory /* performData */) {
         upkeepNeeded = (block.timestamp - lastTimeStamp) > interval;
         // We don't use the checkData in this example. The checkData is defined when the Upkeep was registered.
+    }
+
+     function dispatchAction(Action  action) private {
+
     }
 
     function performUpkeep(bytes calldata /* performData */) external override {
