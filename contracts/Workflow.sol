@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.4;
 
 import "@chainlink/contracts/src/v0.8/KeeperCompatible.sol";
@@ -7,134 +8,144 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Workflow is KeeperCompatibleInterface {
-
     AggregatorV3Interface public tokenAPriceFeed;
-    AggregatorV3Interface public tokenBPriceFeed;  
-    /**
-    * Use an interval in seconds and a timestamp to slow execution of Upkeep
-    */
-    address private constant WMATIC = 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889;
-    address private constant ROUTER = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;// deployed at Polygon mainnet and testnet
+    AggregatorV3Interface public tokenBPriceFeed;
 
-    address private tokenA;
-    address private tokenB;
-    uint256 private amountTokenA;
-    uint256 private amountTokenB;
+    // Protocols
+    address private constant WMATIC =
+        0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889;
+    address private constant QUICKSWAP_ROUTER =
+        0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff; // deployed at Polygon mainnet and testnet
+
+    // Events
+    event TokensSwapApproved(address protocol, address token, uint256 amount);
+    event TokensSwapped(address tokenIn, address tokenOut, address to);
+    event LiquidityAddedTo(uint256 amountA, uint256 amountB, uint256 liquidity);
+    event PriceDataUpdated(int256, int256);
+    event WorkflowCreated(uint256 workflowId, address indexed owner);
+
     uint256 public immutable interval;
-    uint256 public lastTimeStamp;
-    int public lastTokenAPrice;
-    int public prevTokenAPrice;
-    int public lastTokenBPrice;
-    int public prevTokenBPrice;
-    bool public newWorkflowCreated;
 
-    // Workflow related DS
-    struct Workflow {
-        uint256 workflowId;
-        string name; // to store later to a dedicated backend for gas saving
-        Action action;
-        //Actions[] action; // A workflow can be complex
-        uint256 frequency;
+    struct LimitOrderWorkflowDetail {
+        address tokenA;
+        address tokenB;
+        uint256 tokenAReferencePrice; // Token price when User created the worklow
+        uint256 stopLossThresholdRate;
+        uint256 stopLossSwapAmount;
+        uint256 takeProfitThresholdRate;
+        uint256 takeProfitSwapAmount;
         bool isPaused;
     }
 
-    struct Action {
-        address protocol;
-        Pair pair;
-        ActionType action;
-        Trigger trigger;
+    struct LimitOrderWorkflow {
+        uint256 workflowId;
+        address owner;
+        LimitOrderWorkflowDetail details;
     }
 
-    enum ActionType {
-        Swap,
-        Addliquidity
-    }
+    LimitOrderWorkflow[] limitOrderWorkflows;
 
-    struct Pair {
-        address tokenA;
-        address TokenB;
-        uint256 AmountA;
-        uint256 AmountB;
-    }
+    uint256 currentWorkflowId;
+    uint256 lastTimeStamp;
 
-    struct Trigger{
-        uint256 tokenRefPrice;
-        EventTriggerType eventTriggerType;
-        TriggerType triggerType;
-        Metric metric;
-    }
+    // list of tokens to watch prices at each check upkeep round
+    address[] tokenToWatchPrices;
 
-    enum EventTriggerType {
-        TokenPriceInc,
-        TokenPriceDownDec
-    }
-
-    enum TriggerType {
-        Percentage, // when token price increase by X % from 
-        ApproxAmountValue
-    }
-    
-
-    struct Metric {
-        EventTriggerType triggerType;
-        uint value;
-    }
-
-    // Workflow related DS
-
-    event TokensSwapped(address tokenIn, address tokenOut, address to);
-    event LiquidityAddedTo(uint amountA, uint amountB, uint liquidity);
-
-
-    event PriceDataUpdated(int, int);
-
-    /**
-     * Network: Mumbai Testnet
-     * ETH/USD 0x0715A7794a1dc8e42615F059dD6e406A6594651A
-     * BTC/USD 0x007A22900a3B98143368Bd5906f8E17e9867581b
-     */
+    //We will need to store token price references also to check token references
+    mapping(address => uint256) tokenLatestPriceReference;
 
     constructor() {
         interval = 300; //5min
         lastTimeStamp = block.timestamp;
     }
 
-    
-    function _addLiquidityToQuickswap(
-        address _tokenA,
-        address _tokenB,
-        uint _amountA,
-        uint _amountB
-    ) public {
-        IERC20(_tokenA).transferFrom(msg.sender, address(this), _amountA);
-        IERC20(_tokenB).transferFrom(msg.sender, address(this), _amountB);
+    function createLimitOrderWorkflow(LimitOrderWorkflowDetail calldata details)
+        external
+    {
+        currentWorkflowId += 1;
+        address owner = msg.sender;
 
-        IERC20(_tokenA).approve(ROUTER, _amountA);
-        IERC20(_tokenB).approve(ROUTER, _amountB);
+        limitOrderWorkflows.push(
+            LimitOrderWorkflow({
+                workflowId: currentWorkflowId + 1,
+                owner: owner,
+                details: details
+            })
+        );
 
-        (uint amountA, uint amountB, uint liquidity) = IUniswapV2Router02(ROUTER)
-            .addLiquidity(
-                _tokenA,
-                _tokenB,
-                _amountA,
-                _amountB,
-                10000000,
-                10000000,
-                msg.sender,
-                block.timestamp + 3600 * 24
+        emit WorkflowCreated(currentWorkflowId + 1, owner);
+    }
+
+    function fetchLatestPrices() internal {
+        for (uint256 i; i < tokenToWatchPrices.length; i++) {
+            address token = tokenToWatchPrices[i];
+
+            AggregatorV3Interface tokenPriceFeed = AggregatorV3Interface(token);
+
+            uint256 lastTokenPrice = uint256(
+                getLatestTokenPrice(tokenAPriceFeed)
             );
 
-        emit LiquidityAddedTo(amountA, amountB, liquidity);
+            tokenLatestPriceReference[token] = lastTokenPrice;
+
+            // TODO: Do the lookup here
+        }
+    }
+
+    function lookupLimitOrderWorkflows() private {
+        for (uint256 i; i < limitOrderWorkflows.length; i++) {
+            LimitOrderWorkflowDetail memory details = limitOrderWorkflows[i]
+                .details;
+
+            address tokenA = details.tokenA;
+
+            uint256 priceRef = details.tokenAReferencePrice;
+
+            // check if tokenPrice < or > to latest price
+            /*
+        priceRef < tokenLatestPriceReference[tokenA] ? 
+            checkStopLoss(LimitOrderWorkflows[i], tokenLatestPriceReference[tokenA]) :
+            checkTakeProfit(LimitOrderWorkflows[i], tokenLatestPriceReference[tokenA]);
+        */
+
+            if (priceRef < tokenLatestPriceReference[details.tokenA]) {
+                _checkStopLoss(
+                    limitOrderWorkflows[i],
+                    tokenLatestPriceReference[details.tokenA]
+                );
+            }
+        }
+    }
+
+    function _checkStopLoss(
+        LimitOrderWorkflow memory limitWorkflow,
+        uint256 tokenLatestPrice
+    ) private {
+        LimitOrderWorkflowDetail memory details = limitWorkflow.details;
+        uint256 delta = details.tokenAReferencePrice - tokenLatestPrice;
+        uint256 stopLossRate = details.stopLossThresholdRate;
+        uint256 deltaRate = uint256(delta) / 100;
+
+        if (deltaRate >= stopLossRate) {
+            _swap(
+                details.tokenA,
+                details.tokenB,
+                details.stopLossSwapAmount,
+                1,
+                limitWorkflow.owner
+            );
+        }
     }
 
     function _swap(
         address _tokenIn,
         address _tokenOut,
-        uint _amountIn,
-        uint _amountOutMin
+        uint256 _amountIn,
+        uint256 _amountOutMin,
+        address owner
     ) public {
-        IERC20(_tokenIn).transferFrom(msg.sender, address(this), _amountIn);
-        IERC20(_tokenIn).approve(ROUTER, _amountIn);
+        // IERC20(_tokenIn).transferFrom(msg.sender, address(this), _amountIn);
+        IERC20(_tokenIn).transferFrom(owner, address(this), _amountIn);
 
         address[] memory path;
         if (_tokenIn == WMATIC || _tokenOut == WMATIC) {
@@ -148,70 +159,69 @@ contract Workflow is KeeperCompatibleInterface {
             path[2] = _tokenOut;
         }
 
-        IUniswapV2Router02(ROUTER).swapExactTokensForTokens(
+        IUniswapV2Router02(QUICKSWAP_ROUTER).swapExactTokensForTokens(
             _amountIn,
             _amountOutMin,
             path,
-            msg.sender,
+            owner,
             block.timestamp + 3600 * 24
         );
 
         emit TokensSwapped(_tokenIn, _tokenOut, msg.sender);
     }
 
-    function create(
-        address _tokenA,
-        address _tokenB,
-        uint256 _amountTokenA,
-        uint256 _amountTokenB
-    ) public {
-        tokenA = _tokenA;
-        tokenB = _tokenB;
-        amountTokenA = _amountTokenA;
-        amountTokenB = _amountTokenB;
-        tokenAPriceFeed = AggregatorV3Interface(_tokenA);
-        tokenBPriceFeed = AggregatorV3Interface(_tokenB);
-        lastTokenAPrice = getLatestTokenPrice(tokenAPriceFeed);
-        lastTokenBPrice = getLatestTokenPrice(tokenBPriceFeed);
-        newWorkflowCreated = true;
+    function approveSwapToProtocol(address _tokenIn, uint256 _amountIn)
+        external
+    {
+        IERC20(_tokenIn).approve(address(this), _amountIn);
+        IERC20(_tokenIn).approve(QUICKSWAP_ROUTER, _amountIn);
+        emit TokensSwapApproved(QUICKSWAP_ROUTER, _tokenIn, _amountIn);
     }
 
-     /**
+    /**
      * Get the latest ETH and BTC prices
      */
-    function getLatestTokenPrice(AggregatorV3Interface tokenPriceFeed) public view returns (int) {
+    function getLatestTokenPrice(AggregatorV3Interface tokenPriceFeed)
+        public
+        view
+        returns (int256)
+    {
         (
-            /*uint80 roundID*/,
-            int price,
-            /*uint startedAt*/,
-            /*uint timeStamp*/,
+            ,
+            /*uint80 roundID*/
+            int256 price, /*uint startedAt*/
+            ,
+            ,
+
+        ) = /*uint timeStamp*/
             /*uint80 answeredInRound*/
-        ) = tokenPriceFeed.latestRoundData();
+            tokenPriceFeed.latestRoundData();
         return price;
     }
 
-    function checkUpkeep(bytes calldata /* checkData */) external view override returns (bool upkeepNeeded, bytes memory /* performData */) {
+    function checkUpkeep(
+        bytes calldata /* checkData */
+    )
+        external
+        view
+        override
+        returns (
+            bool upkeepNeeded,
+            bytes memory /* performData */
+        )
+    {
         upkeepNeeded = (block.timestamp - lastTimeStamp) > interval;
         // We don't use the checkData in this example. The checkData is defined when the Upkeep was registered.
     }
 
-     function dispatchAction(Action  action) private {
-
-    }
-
-    function performUpkeep(bytes calldata /* performData */) external override {
+    function performUpkeep(
+        bytes calldata /* performData */
+    ) external override {
         //Revalidating the upkeep in the performUpkeep function
-        if ((block.timestamp - lastTimeStamp) > interval && newWorkflowCreated) {
+        if ((block.timestamp - lastTimeStamp) > interval) {
             lastTimeStamp = block.timestamp;
-            prevTokenAPrice = lastTokenAPrice;
-            prevTokenBPrice = lastTokenBPrice;
-            lastTokenAPrice = getLatestTokenPrice(tokenAPriceFeed);
-            lastTokenBPrice = getLatestTokenPrice(tokenBPriceFeed);
 
-            if ((lastTokenAPrice - prevTokenAPrice) > prevTokenAPrice / 100)
-                _swap(tokenA, tokenB, amountTokenA, 1);
-            if ((prevTokenBPrice - lastTokenBPrice) > prevTokenBPrice / 100)
-                _addLiquidityToQuickswap(tokenA, tokenB, amountTokenA, amountTokenB);
+            fetchLatestPrices();
         }
     }
 }
