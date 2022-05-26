@@ -12,6 +12,31 @@ contract Workflow is KeeperCompatibleInterface {
     address private constant WMATIC = 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889;
     address private constant QUICKSWAP_ROUTER = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;// deployed at Polygon mainnet and testnet
 
+    struct AddLiquidityWorkflowDetail {
+        address tokenA;
+        address tokenB;
+        uint256 amountA;
+        uint256 amountB;
+    }
+
+    struct AddLiquidityWorkflow {
+        uint256 workflowId;
+        address owner;
+        AddLiquidityWorkflowDetail details;
+    }
+
+    struct RemoveLiquidityWorkflowDetail {
+        address tokenA;
+        address tokenB;
+        address pair;
+    }
+
+    struct RemoveLiquidityWorkflow {
+        uint256 workflowId;
+        address owner;
+        RemoveLiquidityWorkflowDetail details;
+    }
+
     struct LimitOrderWorkflowDetail {
         address tokenA;
         address tokenB;
@@ -30,6 +55,8 @@ contract Workflow is KeeperCompatibleInterface {
     }
 
     LimitOrderWorkflow[] limitOrderWorkflows;
+    AddLiquidityWorkflow[] addLiquidityWorkflows;
+    RemoveLiquidityWorkflow[] removeLiquidityWorkflows;
     // list of tokens to watch prices at each check upkeep round
     address[] public tokenToWatchPrices;
 
@@ -154,29 +181,31 @@ contract Workflow is KeeperCompatibleInterface {
         }
     }
 
-    function addLiquidity(
-        address _tokenA,
-        address _tokenB,
-        uint _amountA,
-        uint _amountB
-    ) external {
-        require(_tokenA != address(0), "Workflow: invalid token address");
-        require(_tokenB != address(0), "Workflow: invalid token address");
-        require(_amountA != 0, "Workflow: token amount should not be zero");
-        require(_amountB != 0, "Workflow: token amount should not be zero");
+    function addLiquidity(AddLiquidityWorkflowDetail calldata details) external {
+        require(details.tokenA != address(0), "Workflow: invalid token address");
+        require(details.tokenB != address(0), "Workflow: invalid token address");
+        require(details.amountA != 0, "Workflow: token amount should not be zero");
+        require(details.amountB != 0, "Workflow: token amount should not be zero");
 
-        IERC20(_tokenA).transferFrom(msg.sender, address(this), _amountA);
-        IERC20(_tokenB).transferFrom(msg.sender, address(this), _amountB);
+        uint256 workflowId = generateWorkflowId();
 
-        IERC20(_tokenA).approve(QUICKSWAP_ROUTER, _amountA);
-        IERC20(_tokenB).approve(QUICKSWAP_ROUTER, _amountB);
+        addLiquidityWorkflows.push(
+            AddLiquidityWorkflow({
+                workflowId: workflowId,
+                owner: msg.sender,
+                details: details
+            })
+        );
+
+        IERC20(details.tokenA).transferFrom(msg.sender, address(this), details.amountA);
+        IERC20(details.tokenB).transferFrom(msg.sender, address(this), details.amountB);
 
         (uint amountA, uint amountB, uint liquidity) = IUniswapV2Router02(QUICKSWAP_ROUTER)
             .addLiquidity(
-                _tokenA,
-                _tokenB,
-                _amountA,
-                _amountB,
+                details.tokenA,
+                details.tokenB,
+                details.amountA,
+                details.amountB,
                 1,
                 1,
                 address(this),
@@ -185,19 +214,27 @@ contract Workflow is KeeperCompatibleInterface {
         emit LiquidityAdded(amountA, amountB, liquidity);
     }
 
-    function removeLiquidity(address _tokenA, address _tokenB, address _pair) external {
-        require(_tokenA != address(0), "Workflow: invalid token address");
-        require(_tokenB != address(0), "Workflow: invalid token address");
-        require(_pair != address(0), "Workflow: invalid pair address");
+    function removeLiquidity(RemoveLiquidityWorkflowDetail calldata details) external {
+        require(details.tokenA != address(0), "Workflow: invalid token address");
+        require(details.tokenB != address(0), "Workflow: invalid token address");
+        require(details.pair != address(0), "Workflow: invalid pair address");
 
-        uint liquidity = IERC20(_pair).balanceOf(address(this));
+        uint256 workflowId = generateWorkflowId();
+
+        removeLiquidityWorkflows.push(
+            RemoveLiquidityWorkflow({
+                workflowId: workflowId,
+                owner: msg.sender,
+                details: details
+            })
+        );
+
+        uint liquidity = IERC20(details.pair).balanceOf(address(this));
         require(liquidity != 0, "Workflow: has no balance");
 
-        IERC20(_pair).approve(QUICKSWAP_ROUTER, liquidity);
-
         (uint amountA, uint amountB) = IUniswapV2Router02(QUICKSWAP_ROUTER).removeLiquidity(
-            _tokenA,
-            _tokenB,
+            details.tokenA,
+            details.tokenB,
             liquidity,
             1,
             1,
