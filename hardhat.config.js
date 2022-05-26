@@ -19,11 +19,11 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
-  defaultNetwork: "matic",
+  defaultNetwork: "mumbai",
   networks: {
     hardhat: {
     },
-    matic: {
+    mumbai: {
       url: process.env.POLYGON_MUMBAI_RPC_PROVIDER,
       accounts: [process.env.PRIVATE_KEY]
     }

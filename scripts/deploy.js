@@ -15,9 +15,13 @@ async function main() {
   // )
   // console.log("MockERC20Token Address: ", mockERC20Token.address);
 
-  const QuickswapLiquidity = await ethers.getContractFactory("QuickswapLiquidity");
-  const quickswapLiquidity = await QuickswapLiquidity.deploy()
-  console.log("QuickswapLiquidity Address: ", quickswapLiquidity.address);
+  // const QuickswapLiquidity = await ethers.getContractFactory("QuickswapLiquidity");
+  // const quickswapLiquidity = await QuickswapLiquidity.deploy()
+  // console.log("QuickswapLiquidity Address: ", quickswapLiquidity.address);
+
+  const Workflow = await ethers.getContractFactory("Workflow");
+  const workflow = await Workflow.deploy()
+  console.log("Workflow Address: ", workflow.address);
 
   // const UniswapLiquidity = await ethers.getContractFactory("UniswapLiquidity");
   // const uniswapLiquidity = await UniswapLiquidity.deploy()
