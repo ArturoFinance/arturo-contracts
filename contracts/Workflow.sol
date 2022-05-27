@@ -12,6 +12,31 @@ contract Workflow is KeeperCompatibleInterface {
     address private constant WMATIC = 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889;
     address private constant QUICKSWAP_ROUTER = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;// deployed at Polygon mainnet and testnet
 
+    struct AddLiquidityWorkflowDetail {
+        address tokenA;
+        address tokenB;
+        uint256 amountA;
+        uint256 amountB;
+    }
+
+    struct AddLiquidityWorkflow {
+        uint256 workflowId;
+        address owner;
+        AddLiquidityWorkflowDetail details;
+    }
+
+    struct RemoveLiquidityWorkflowDetail {
+        address tokenA;
+        address tokenB;
+        address pair;
+    }
+
+    struct RemoveLiquidityWorkflow {
+        uint256 workflowId;
+        address owner;
+        RemoveLiquidityWorkflowDetail details;
+    }
+
     struct LimitOrderWorkflowDetail {
         address tokenA;
         address tokenB;
@@ -30,6 +55,8 @@ contract Workflow is KeeperCompatibleInterface {
     }
 
     LimitOrderWorkflow[] limitOrderWorkflows;
+    AddLiquidityWorkflow[] addLiquidityWorkflows;
+    RemoveLiquidityWorkflow[] removeLiquidityWorkflows;
     // list of tokens to watch prices at each check upkeep round
     address[] public tokenToWatchPrices;
 
@@ -43,12 +70,16 @@ contract Workflow is KeeperCompatibleInterface {
     uint256 public lastTimeStamp;
     uint256 public currentWorkflowId;
 
-    event LiquidityAdded(uint amountA, uint amountB, uint liquidity);
-    event LiquidityRemoved(uint amountA, uint amountB);
+    event LiquidityAdded(uint256 amountA, uint256 amountB, uint256 liquidity);
+    event LiquidityAddApproved(address protocol, uint256 amountA, uint256 amountB);
+    event LiquidityRemoved(uint256 amountA, uint256 amountB);
+    event LiquidityRemoveApproved(address protocol, address pair, uint256 amount);
     event TokensSwapped(address tokenIn, address tokenOut, address to);
     event TokensSwapApproved(address protocol, address token, uint256 amount);
     event PriceDataUpdated(int256, int256);
-    event WorkflowCreated(uint256 workflowId, address indexed owner);
+    event LimitOrderWorkflowCreated(uint256 workflowId, address indexed owner);
+    event AddLiquidityWorkflowCreated(uint256 workflowId, address indexed owner);
+    event RemoveLiquidityWorkflowCreated(uint256 workflowId, address indexed owner);
 
     constructor() {
         interval = 5 minutes;
@@ -72,7 +103,37 @@ contract Workflow is KeeperCompatibleInterface {
             })
         );
 
-        emit WorkflowCreated(workflowId, owner);
+        emit LimitOrderWorkflowCreated(workflowId, owner);
+    }
+
+    function createAddLiquidityWorkflow(AddLiquidityWorkflowDetail calldata details) external {
+        uint256 workflowId = generateWorkflowId();
+        address owner = msg.sender;
+
+        addLiquidityWorkflows.push(
+            AddLiquidityWorkflow({
+                workflowId: workflowId,
+                owner: owner,
+                details: details
+            })
+        );
+
+        emit AddLiquidityWorkflowCreated(workflowId, owner);
+    }
+
+    function createRemoveLiquidityWorkflow(RemoveLiquidityWorkflowDetail calldata details) external {
+        uint256 workflowId = generateWorkflowId();
+        address owner = msg.sender;
+
+        removeLiquidityWorkflows.push(
+            RemoveLiquidityWorkflow({
+                workflowId: workflowId,
+                owner: owner,
+                details: details
+            })
+        );
+
+        emit RemoveLiquidityWorkflowCreated(workflowId, owner);
     }
 
     function _fetchLatestPrices() internal {
@@ -159,7 +220,7 @@ contract Workflow is KeeperCompatibleInterface {
         address _tokenB,
         uint _amountA,
         uint _amountB
-    ) external {
+    ) public {
         require(_tokenA != address(0), "Workflow: invalid token address");
         require(_tokenB != address(0), "Workflow: invalid token address");
         require(_amountA != 0, "Workflow: token amount should not be zero");
@@ -167,9 +228,6 @@ contract Workflow is KeeperCompatibleInterface {
 
         IERC20(_tokenA).transferFrom(msg.sender, address(this), _amountA);
         IERC20(_tokenB).transferFrom(msg.sender, address(this), _amountB);
-
-        IERC20(_tokenA).approve(QUICKSWAP_ROUTER, _amountA);
-        IERC20(_tokenB).approve(QUICKSWAP_ROUTER, _amountB);
 
         (uint amountA, uint amountB, uint liquidity) = IUniswapV2Router02(QUICKSWAP_ROUTER)
             .addLiquidity(
@@ -180,20 +238,19 @@ contract Workflow is KeeperCompatibleInterface {
                 1,
                 1,
                 address(this),
-                block.timestamp
+	            block.timestamp
             );
+
         emit LiquidityAdded(amountA, amountB, liquidity);
     }
 
-    function removeLiquidity(address _tokenA, address _tokenB, address _pair) external {
+    function removeLiquidity(address _tokenA, address _tokenB, address _pair) public {
         require(_tokenA != address(0), "Workflow: invalid token address");
         require(_tokenB != address(0), "Workflow: invalid token address");
         require(_pair != address(0), "Workflow: invalid pair address");
 
         uint liquidity = IERC20(_pair).balanceOf(address(this));
         require(liquidity != 0, "Workflow: has no balance");
-
-        IERC20(_pair).approve(QUICKSWAP_ROUTER, liquidity);
 
         (uint amountA, uint amountB) = IUniswapV2Router02(QUICKSWAP_ROUTER).removeLiquidity(
             _tokenA,
@@ -241,11 +298,35 @@ contract Workflow is KeeperCompatibleInterface {
         emit TokensSwapped(_tokenIn, _tokenOut, msg.sender);
     }
 
-    function approveSwapToProtocol(address _tokenIn, uint256 _amountIn)
-        external
-    {
+    function approveAddLiquidityToProtocol(
+        address _tokenA,
+        address _tokenB,
+        uint _amountA,
+        uint _amountB
+    ) external {
+        IERC20(_tokenA).approve(address(this), _amountA);
+        IERC20(_tokenB).approve(address(this), _amountB);
+        
+        IERC20(_tokenA).approve(QUICKSWAP_ROUTER, _amountA);
+        IERC20(_tokenB).approve(QUICKSWAP_ROUTER, _amountB);
+
+        emit LiquidityAddApproved(QUICKSWAP_ROUTER, _amountA, _amountB);
+    }
+
+    function approveRemoveLiquidityToProtocol(address _pair) external {
+        uint liquidity = IERC20(_pair).balanceOf(address(this));
+        require(liquidity != 0, "Workflow: has no balance");
+
+        IERC20(_pair).approve(address(this), liquidity);
+        IERC20(_pair).approve(QUICKSWAP_ROUTER, liquidity);
+
+        emit LiquidityRemoveApproved(QUICKSWAP_ROUTER, _pair, liquidity);
+    }
+
+    function approveSwapToProtocol(address _tokenIn, uint256 _amountIn) external {
         IERC20(_tokenIn).approve(address(this), _amountIn);
         IERC20(_tokenIn).approve(QUICKSWAP_ROUTER, _amountIn);
+
         emit TokensSwapApproved(QUICKSWAP_ROUTER, _tokenIn, _amountIn);
     }
 
