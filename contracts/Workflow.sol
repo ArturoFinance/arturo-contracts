@@ -82,7 +82,7 @@ contract Workflow is KeeperCompatibleInterface {
     event RemoveLiquidityWorkflowCreated(uint256 workflowId, address indexed owner);
 
     constructor() {
-        interval = 5 minutes;
+        interval = 7 minutes;
         lastTimeStamp = block.timestamp;
     }
 
@@ -91,9 +91,28 @@ contract Workflow is KeeperCompatibleInterface {
         return currentWorkflowId;
     }
 
-    function createLimitOrderWorkflow(LimitOrderWorkflowDetail calldata details) external {
+    function createLimitOrderWorkflow(
+        address _tokenA,
+        address _tokenB,
+        uint256 _tokenAReferencePrice,
+        uint256 _stopLossThresholdRate,
+        uint256 _stopLossSwapAmount,
+        uint256 _takeProfitThresholdRate,
+        uint256 _takeProfitSwapAmount
+    ) external {
         address owner = msg.sender;
         uint256 workflowId = generateWorkflowId();
+
+        LimitOrderWorkflowDetail memory details = LimitOrderWorkflowDetail({
+            tokenA: _tokenA,
+            tokenB: _tokenB,
+            tokenAReferencePrice: _tokenAReferencePrice,
+            stopLossThresholdRate: _stopLossThresholdRate,
+            stopLossSwapAmount: _stopLossSwapAmount,
+            takeProfitThresholdRate: _takeProfitThresholdRate,
+            takeProfitSwapAmount: _takeProfitSwapAmount,
+            isPaused: false
+        });
 
         limitOrderWorkflows.push(
             LimitOrderWorkflow({
@@ -143,7 +162,7 @@ contract Workflow is KeeperCompatibleInterface {
             AggregatorV3Interface tokenPriceFeed = AggregatorV3Interface(token);
 
             uint256 lastTokenPrice = uint256(
-                getLatestTokenPrice(tokenPriceFeed)
+                _getLatestTokenPrice(tokenPriceFeed)
             );
 
             tokenLatestPriceReference[token] = lastTokenPrice;
@@ -152,22 +171,34 @@ contract Workflow is KeeperCompatibleInterface {
         }
     }
 
-    function getLatestTokenPrice(AggregatorV3Interface tokenPriceFeed)
-        public
+    function getLatestWMaticPrice() public view returns (uint256) {
+        AggregatorV3Interface tokenAFeed = AggregatorV3Interface(0xd0D5e3DB44DE05E9F294BB0a3bEEaF030DE24Ada);
+        (
+            /*uint80 roundID*/,
+            int price,
+            /*uint startedAt*/,
+            /*uint timeStamp*/,
+            /*uint80 answeredInRound*/
+        ) = tokenAFeed.latestRoundData();
+        return uint256(price);
+    }
+
+    function _getLatestTokenPrice(AggregatorV3Interface tokenPriceFeed)
+        internal
         view
-        returns (int256)
+        returns (uint256)
     {
         (
             ,
             /*uint80 roundID*/
-            int256 price, /*uint startedAt*/
+            int price, /*uint startedAt*/
             ,
             ,
 
         ) = /*uint timeStamp*/
             /*uint80 answeredInRound*/
             tokenPriceFeed.latestRoundData();
-        return price;
+        return uint256(price);
     }
 
     function lookupLimitOrderWorkflows() private {
@@ -270,10 +301,9 @@ contract Workflow is KeeperCompatibleInterface {
         address _tokenOut,
         uint256 _amountIn,
         uint256 _amountOutMin,
-        address owner
-    ) public {
-        // IERC20(_tokenIn).transferFrom(msg.sender, address(this), _amountIn);
-        IERC20(_tokenIn).transferFrom(owner, address(this), _amountIn);
+        address _owner
+    ) internal {
+        IERC20(_tokenIn).transferFrom(_owner, address(this), _amountIn);
 
         address[] memory path;
         if (_tokenIn == WMATIC || _tokenOut == WMATIC) {
@@ -291,8 +321,8 @@ contract Workflow is KeeperCompatibleInterface {
             _amountIn,
             _amountOutMin,
             path,
-            owner,
-            block.timestamp + 3600 * 24
+            _owner,
+            block.timestamp
         );
 
         emit TokensSwapped(_tokenIn, _tokenOut, msg.sender);
@@ -303,10 +333,7 @@ contract Workflow is KeeperCompatibleInterface {
         address _tokenB,
         uint _amountA,
         uint _amountB
-    ) external {
-        IERC20(_tokenA).approve(address(this), _amountA);
-        IERC20(_tokenB).approve(address(this), _amountB);
-        
+    ) external { 
         IERC20(_tokenA).approve(QUICKSWAP_ROUTER, _amountA);
         IERC20(_tokenB).approve(QUICKSWAP_ROUTER, _amountB);
 
@@ -317,14 +344,12 @@ contract Workflow is KeeperCompatibleInterface {
         uint liquidity = IERC20(_pair).balanceOf(address(this));
         require(liquidity != 0, "Workflow: has no balance");
 
-        IERC20(_pair).approve(address(this), liquidity);
         IERC20(_pair).approve(QUICKSWAP_ROUTER, liquidity);
 
         emit LiquidityRemoveApproved(QUICKSWAP_ROUTER, _pair, liquidity);
     }
 
     function approveSwapToProtocol(address _tokenIn, uint256 _amountIn) external {
-        IERC20(_tokenIn).approve(address(this), _amountIn);
         IERC20(_tokenIn).approve(QUICKSWAP_ROUTER, _amountIn);
 
         emit TokensSwapApproved(QUICKSWAP_ROUTER, _tokenIn, _amountIn);
@@ -342,7 +367,28 @@ contract Workflow is KeeperCompatibleInterface {
         if (block.timestamp > interval + lastTimeStamp) {
             lastTimeStamp = block.timestamp;
 
-            _fetchLatestPrices();
+            for (uint256 i = 0; i < limitOrderWorkflows.length; i++) {
+                address owner = limitOrderWorkflows[i].owner; 
+                LimitOrderWorkflowDetail memory details = limitOrderWorkflows[i].details;
+                if (details.isPaused) continue;
+
+                AggregatorV3Interface tokenAFeed = AggregatorV3Interface(0xd0D5e3DB44DE05E9F294BB0a3bEEaF030DE24Ada);
+                uint256 lastTokenAPrice = _getLatestTokenPrice(tokenAFeed);
+                if (details.tokenAReferencePrice >= lastTokenAPrice) continue;
+
+                uint256 deltaA = lastTokenAPrice - details.tokenAReferencePrice;
+                uint256 profitAmount = details.tokenAReferencePrice * details.takeProfitThresholdRate / 100;
+
+                if (deltaA >= profitAmount) {
+                    _swap(
+                        details.tokenA,
+                        details.tokenB,
+                        details.takeProfitSwapAmount,
+                        1,
+                        owner
+                    );
+                }
+            }
         }
     }
 }
