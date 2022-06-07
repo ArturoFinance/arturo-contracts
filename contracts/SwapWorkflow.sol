@@ -3,23 +3,29 @@ pragma solidity ^0.8.4;
 
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./interfaces/ISwapWorkflow.sol";
 
-contract SwapWorkflow {
-    event TokensSwapped(address tokenIn, address tokenOut, address to);
-
+contract SwapWorkflow is ISwapWorkflow {
     address private constant ROUTER = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;// deployed at Polygon mainnet and testnet
     address private constant WMATIC = 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889;
+    uint256 public interval;
+    uint256 public override lastExecuted;
 
-    constructor() {}
+    event TokensSwapped(address tokenIn, address tokenOut, address to);
+    
+    constructor() {
+        interval = 5 minutes;
+        lastExecuted = block.timestamp;
+    }
 
     function swap(
-        address owner,
+        address _owner,
         address _tokenIn,
         address _tokenOut,
         uint _amountIn,
         uint _amountOutMin
-    ) external {
-        IERC20(_tokenIn).transferFrom(owner, address(this), _amountIn);
+    ) external override {
+        IERC20(_tokenIn).transferFrom(_owner, address(this), _amountIn);
         IERC20(_tokenIn).approve(ROUTER, _amountIn);
 
         address[] memory path;
@@ -38,10 +44,11 @@ contract SwapWorkflow {
             _amountIn,
             _amountOutMin,
             path,
-            owner,
+            _owner,
             block.timestamp
         );
 
-        emit TokensSwapped(_tokenIn, _tokenOut, owner);
+        lastExecuted = block.timestamp;
+        emit TokensSwapped(_tokenIn, _tokenOut, _owner);
     }
 }

@@ -30,6 +30,10 @@ async function main() {
   const SwapWorkflow = await ethers.getContractFactory("SwapWorkflow");
   const swapWorkflow = await SwapWorkflow.deploy()
   console.log("SwapWorkflow Address: ", swapWorkflow.address);
+
+  const SwapResolver = await ethers.getContractFactory("SwapResolver");
+  const swapResolver = await SwapResolver.deploy(swapWorkflow.address)
+  console.log("SwapResolver Address: ", swapResolver.address);
 }
 
 main()
