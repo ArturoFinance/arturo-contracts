@@ -12,10 +12,17 @@ contract SwapWorkflow is ISwapWorkflow {
     uint256 public override lastExecuted;
 
     event TokensSwapped(address tokenIn, address tokenOut, address to);
+    event TokensSwapApproved(address protocol, address token, uint256 amount);
     
     constructor() {
         interval = 5 minutes;
         lastExecuted = block.timestamp;
+    }
+
+    function approveSwapToProtocol(address _tokenIn, uint256 _amountIn) external {
+        IERC20(_tokenIn).approve(ROUTER, _amountIn);
+
+        emit TokensSwapApproved(ROUTER, _tokenIn, _amountIn);
     }
 
     function swap(
@@ -26,7 +33,6 @@ contract SwapWorkflow is ISwapWorkflow {
         uint _amountOutMin
     ) external override {
         IERC20(_tokenIn).transferFrom(_owner, address(this), _amountIn);
-        IERC20(_tokenIn).approve(ROUTER, _amountIn);
 
         address[] memory path;
         if (_tokenIn == WMATIC || _tokenOut == WMATIC) {
