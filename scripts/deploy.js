@@ -19,13 +19,21 @@ async function main() {
   // const quickswapLiquidity = await QuickswapLiquidity.deploy()
   // console.log("QuickswapLiquidity Address: ", quickswapLiquidity.address);
 
-  const Workflow = await ethers.getContractFactory("Workflow");
-  const workflow = await Workflow.deploy()
-  console.log("Workflow Address: ", workflow.address);
+  // const Workflow = await ethers.getContractFactory("Workflow");
+  // const workflow = await Workflow.deploy()
+  // console.log("Workflow Address: ", workflow.address);
 
   // const UniswapLiquidity = await ethers.getContractFactory("UniswapLiquidity");
   // const uniswapLiquidity = await UniswapLiquidity.deploy()
   // console.log("UniswapLiquidity Address: ", uniswapLiquidity.address);
+
+  const SwapWorkflow = await ethers.getContractFactory("SwapWorkflow");
+  const swapWorkflow = await SwapWorkflow.deploy()
+  console.log("SwapWorkflow Address: ", swapWorkflow.address);
+
+  const SwapResolver = await ethers.getContractFactory("SwapResolver");
+  const swapResolver = await SwapResolver.deploy(swapWorkflow.address)
+  console.log("SwapResolver Address: ", swapResolver.address);
 }
 
 main()
