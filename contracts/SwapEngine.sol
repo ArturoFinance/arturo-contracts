@@ -11,9 +11,8 @@ contract SwapEngine {
     address private constant ROUTER = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;// deployed at Polygon mainnet and testnet
     address private constant WMATIC = 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889;
     ISwapRouter public immutable swapRouterV3;
-    
+
     enum SwapEngines {
-        Quickswap,
         Apeswap,
         UniswapV2,
         UniswapV3,
@@ -27,6 +26,21 @@ contract SwapEngine {
 
     constructor(ISwapRouter _swapRouterV3) {
         swapRouterV3 = _swapRouterV3;
+    }
+
+    function swapOnProtocol(
+        SwapEngines engine,
+        address _owner,
+        address _tokenIn,
+        address _tokenOut,
+        uint _amountIn,
+        uint _amountOutMin
+    ) external {
+        if (engine == SwapEngines.UniswapV2) {
+            _swapOnUniswapV2(_owner, _tokenIn, _tokenOut, _amountIn, _amountOutMin);
+        } else if (engine == SwapEngines.UniswapV3) {
+            _swapOnUniswapV3(_owner, _tokenIn, _tokenOut, _amountIn);
+        }
     }
 
     function approveSwapToProtocol(address _tokenIn, uint256 _amountIn) external {
