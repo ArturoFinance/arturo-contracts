@@ -6,9 +6,20 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol';
 import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
 
-contract SwapEngine {
+interface IApeRouter {
+    function swapExactTokensForTokensSupportingFeeOnTransferTokens(
+        uint amountIn,
+        uint amountOutMin,
+        address[] calldata path,
+        address to,
+        uint deadline
+    ) external;
+}
 
-    address private constant ROUTER = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;// deployed at Polygon mainnet and testnet
+contract SwapEngine {
+    address private constant APESWAP_ROUTER = 0xC0788A3aD43d79aa53B09c2EaCc313A787d1d607;
+    address private constant UNISWAP_V2_ROUTER = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;
+    address private constant ONEINCH_V3_ROUTER = 0x11111112542D85B3EF69AE05771c2dCCff4fAa26;
     address private constant WMATIC = 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889;
     ISwapRouter public immutable swapRouterV3;
 
@@ -28,36 +39,13 @@ contract SwapEngine {
         swapRouterV3 = _swapRouterV3;
     }
 
-    function swapOnProtocol(
-        SwapEngines engine,
-        address _owner,
-        address _tokenIn,
-        address _tokenOut,
-        uint _amountIn,
-        uint _amountOutMin
-    ) external {
-        if (engine == SwapEngines.UniswapV2) {
-            _swapOnUniswapV2(_owner, _tokenIn, _tokenOut, _amountIn, _amountOutMin);
-        } else if (engine == SwapEngines.UniswapV3) {
-            _swapOnUniswapV3(_owner, _tokenIn, _tokenOut, _amountIn);
-        }
-    }
-
     function approveSwapToProtocol(address _tokenIn, uint256 _amountIn) external {
-        IERC20(_tokenIn).approve(ROUTER, _amountIn);
+        IERC20(_tokenIn).approve(UNISWAP_V2_ROUTER, _amountIn);
 
-        emit TokensSwapApproved(ROUTER, _tokenIn, _amountIn);
+        emit TokensSwapApproved(UNISWAP_V2_ROUTER, _tokenIn, _amountIn);
     }
 
-    function _swapOnUniswapV2(
-        address _owner,
-        address _tokenIn,
-        address _tokenOut,
-        uint _amountIn,
-        uint _amountOutMin
-    ) internal {
-        IERC20(_tokenIn).transferFrom(_owner, address(this), _amountIn);
-
+    function getPath(address _tokenIn, address _tokenOut) private pure returns (address[] memory) {
         address[] memory path;
         if (_tokenIn == WMATIC || _tokenOut == WMATIC) {
             path = new address[](2);
@@ -70,9 +58,25 @@ contract SwapEngine {
             path[2] = _tokenOut;
         }
 
-        IUniswapV2Router02(ROUTER).swapExactTokensForTokens(
+        return path;
+    }
+
+    function swapOnUniswapV2(
+        address _owner,
+        address _tokenIn,
+        address _tokenOut,
+        uint _amountIn,
+        SwapEngines engineType
+    ) external {
+        require(engineType == SwapEngines.UniswapV2, "Please call a reasonable function");
+
+        IERC20(_tokenIn).transferFrom(_owner, address(this), _amountIn);
+
+        address[] memory path = getPath(_tokenIn, _tokenOut);
+
+        IUniswapV2Router02(UNISWAP_V2_ROUTER).swapExactTokensForTokens(
             _amountIn,
-            _amountOutMin,
+            1,
             path,
             _owner,
             block.timestamp
@@ -81,14 +85,14 @@ contract SwapEngine {
         emit TokensSwappedOnUniswapV2(_tokenIn, _tokenOut, _owner);
     }
 
-    function _swapOnUniswapV3(
+    function swapOnUniswapV3(
         address _owner,
         address _tokenIn,
         address _tokenOut,
-        uint256 _amountIn
-    ) internal returns (uint256 amountOut) {
-        // msg.sender must approve this contract
-
+        uint256 _amountIn,
+        SwapEngines engineType
+    ) external returns (uint256 amountOut) {
+        require(engineType == SwapEngines.UniswapV3, "Please call a reasonable function");
         // Transfer the specified amount of _tokenIn to this contract.
         TransferHelper.safeTransferFrom(_tokenIn, _owner, address(this), _amountIn);
 
@@ -113,4 +117,26 @@ contract SwapEngine {
         amountOut = swapRouterV3.exactInputSingle(params);
         emit TokensSwappedOnUniswapV3(_tokenIn, _tokenOut, _owner);
     }
+
+    function swapOnApeswap(
+        address _owner,
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _amountIn,
+        SwapEngines engineType
+    ) external {
+        require(engineType == SwapEngines.UniswapV3, "Please call a reasonable function");
+
+        IERC20(_tokenIn).transferFrom(_owner, address(this), _amountIn);
+        address[] memory path = getPath(_tokenIn, _tokenOut);
+
+        IApeRouter(APESWAP_ROUTER).swapExactTokensForTokensSupportingFeeOnTransferTokens(
+            _amountIn,
+            1,
+            path,
+            _owner,
+            block.timestamp    
+        );
+    }
+
 }

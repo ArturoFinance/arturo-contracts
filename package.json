@@ -38,6 +38,8 @@
     "@gelatonetwork/ops-sdk": "^0.1.1",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "@uniswap/v3-core": "^1.0.1",
-    "@uniswap/v3-periphery": "^1.4.1"
+    "@uniswap/v3-periphery": "^1.4.1",
+    "paraswap": "^5.1.0",
+    "paraswap-core": "^1.0.2"
   }
 }
