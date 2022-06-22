@@ -41,22 +41,20 @@ contract SwapEngine {
 
     constructor() {}
 
-    function approveSwapOnUniswapV2(address _tokenIn, uint256 _amountIn) external {
-        IERC20(_tokenIn).approve(UNISWAP_V2_ROUTER, _amountIn);
+    function approveSwapOnEngines(address _tokenIn, uint256 _amountIn, SwapEngines engineType) external {
+        if (engineType == SwapEngines.UniswapV2) {
+            IERC20(_tokenIn).approve(UNISWAP_V2_ROUTER, _amountIn);
 
-        emit TokensApprovedOnUniswapV2(UNISWAP_V2_ROUTER, _tokenIn, _amountIn);
-    }
+            emit TokensApprovedOnUniswapV2(UNISWAP_V2_ROUTER, _tokenIn, _amountIn);
+        } else if (engineType == SwapEngines.UniswapV3) {
+            IERC20(_tokenIn).approve(UNISWAP_V3_ROUTER, _amountIn);
 
-    function approveSwapOnUniswapV3(address _tokenIn, uint256 _amountIn) external {
-        IERC20(_tokenIn).approve(UNISWAP_V3_ROUTER, _amountIn);
+            emit TokensApprovedOnUniswapV3(UNISWAP_V3_ROUTER, _tokenIn, _amountIn);
+        } else if (engineType == SwapEngines.Apeswap) {
+            IERC20(_tokenIn).approve(APESWAP_ROUTER, _amountIn);
 
-        emit TokensApprovedOnUniswapV3(UNISWAP_V3_ROUTER, _tokenIn, _amountIn);
-    }
-
-    function approveSwapOnApeswap(address _tokenIn, uint256 _amountIn) external {
-        IERC20(_tokenIn).approve(APESWAP_ROUTER, _amountIn);
-
-        emit TokensApprovedOnApeswap(APESWAP_ROUTER, _tokenIn, _amountIn);
+            emit TokensApprovedOnApeswap(APESWAP_ROUTER, _tokenIn, _amountIn);
+        }
     }
 
     function _getPath(address _tokenIn, address _tokenOut) internal pure returns (address[] memory) {
