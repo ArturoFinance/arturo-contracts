@@ -26,29 +26,72 @@ interface ISushiRouer {
     ) external returns (uint[] memory amounts);
 }
 
+interface IAggregationExecutor {
+    /// @notice Make calls on `msgSender` with specified data
+    function callBytes(address msgSender, bytes calldata data) external payable;  // 0x2636f7f8
+}
+
+interface IOneinchRouter {
+    struct SwapDescription {
+        IERC20 srcToken;
+        IERC20 dstToken;
+        address payable srcReceiver;
+        address payable dstReceiver;
+        uint256 amount;
+        uint256 minReturnAmount;
+        uint256 flags;
+        bytes permit;
+    }
+
+    function swap(
+        IAggregationExecutor caller,
+        SwapDescription calldata desc,
+        bytes calldata data
+    )
+        external
+        payable
+        returns (
+            uint256 returnAmount,
+            uint256 spentAmount,
+            uint256 gasLeft
+        );
+
+    function unoswap(
+        IERC20 srcToken,
+        uint256 amount,
+        uint256 minReturn,
+        bytes32[] calldata pools
+    ) external returns (uint256 returnAmount);
+}
+
 contract SwapEngine {
     address private constant APESWAP_ROUTER = 0xC0788A3aD43d79aa53B09c2EaCc313A787d1d607;
     address private constant UNISWAP_V2_ROUTER = 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45;
     address private constant UNISWAP_V3_ROUTER = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
     address private constant SUSHISWAP_ROUTER = 0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506;
+    address private constant ONEINCH_ROUTER = address(0);
     address private constant WMATIC = 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889;
 
     enum SwapEngines {
         Apeswap,
         UniswapV2,
         UniswapV3,
-        Sushiswap
+        Sushiswap,
+        Oneinch
     }
 
     event TokensSwappedOnUniswapV2(address tokenIn, address tokenOut, address to);
     event TokensSwappedOnUniswapV3(address tokenIn, address tokenOut, address to);
     event TokensSwappedOnApeswap(address tokenIn, address tokenOut, address to);
     event TokensSwappedOnSushiswap(address tokenIn, address tokenOut, address to);
+    event UnowappedOnOneinch(address tokenIn, bytes32[] pool, uint256 amountOut);
+    event AggregationSwappedOnOneinch(address tokenIn, address tokenOut, uint256 amountOut);
 
     event TokensApprovedOnUniswapV2(address protocol, address token, uint256 amount);
     event TokensApprovedOnUniswapV3(address protocol, address token, uint256 amount);
     event TokensApprovedOnApeswap(address protocol, address token, uint256 amount);
     event TokensApprovedOnSushiswap(address protocol, address token, uint256 amount);
+    event TokensApprovedOnOneinch(address protocol, address token, uint256 amount);
 
     constructor() {}
 
@@ -69,6 +112,8 @@ contract SwapEngine {
             IERC20(_tokenIn).approve(SUSHISWAP_ROUTER, _amountIn);
 
             emit TokensApprovedOnSushiswap(SUSHISWAP_ROUTER, _tokenIn, _amountIn);
+        } else if (engineType == SwapEngines.Oneinch) {
+            IERC20(_tokenIn).approve(ONEINCH_ROUTER, _amountIn);
         }
     }
 
@@ -148,7 +193,7 @@ contract SwapEngine {
         uint256 _amountIn,
         SwapEngines engineType
     ) external {
-        require(engineType == SwapEngines.UniswapV3, "Please call a reasonable function");
+        require(engineType == SwapEngines.UniswapV3, "Unknown swap function");
 
         IERC20(_tokenIn).transferFrom(_owner, address(this), _amountIn);
         address[] memory path = _getPath(_tokenIn, _tokenOut);
@@ -187,4 +232,53 @@ contract SwapEngine {
 
         emit TokensSwappedOnSushiswap(_tokenIn, _tokenOut, _owner);
     }
+
+    function unoswapOnOneinch(
+        address _owner,
+        address _tokenIn,
+        uint _amountIn,
+        bytes32[] calldata _pools,
+        SwapEngines engineType
+    ) external {
+        require(engineType == SwapEngines.Oneinch, "Please call a reasonable function");
+        IERC20(_tokenIn).transferFrom(_owner, address(this), _amountIn);
+
+        uint256 amountOut = IOneinchRouter(ONEINCH_ROUTER).unoswap(
+            IERC20(_tokenIn),
+            _amountIn,
+            1,
+            _pools
+        );
+
+        emit UnowappedOnOneinch(_tokenIn, _pools, amountOut);
+    }
+
+    function aggregationswapOnOneinch(
+        address _owner,
+        address _tokenIn,
+        address _tokenOut,
+        uint256 _amountIn,
+        SwapEngines engineType
+    ) external {
+        require(engineType == SwapEngines.Oneinch, "Please call a reasonable function");
+        IERC20(_tokenIn).transferFrom(_owner, address(this), _amountIn);
+
+        (uint256 amountOut, , ) = IOneinchRouter(ONEINCH_ROUTER).swap(
+            IAggregationExecutor(address(this)),
+            IOneinchRouter.SwapDescription(
+                IERC20(_tokenIn),
+                IERC20(_tokenOut),
+                payable(_owner),
+                payable(_owner),
+                _amountIn,
+                1,
+                1,
+                bytes('')
+            ),
+            bytes('')
+        );
+
+        emit AggregationSwappedOnOneinch(_tokenIn, _tokenOut, amountOut);
+    }
+
 }
