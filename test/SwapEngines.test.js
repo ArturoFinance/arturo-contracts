@@ -7,8 +7,17 @@ describe("Swappping", function () {
     const [Alice, Bob] = users
     this.Alice = Alice
     this.Bob = Bob
+    this.enginTypes = {
+      Apeswap: 0,
+      UniswapV2: 1,
+      UniswapV3: 2,
+      Sushiswap: 3,
+      Oneinch: 4
+    }
 
-    this.routerAddress = '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff'
+    this.quickswapRouterAddress = '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff'
+    this.UniswapV2RouterAddress = '0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45'
+    this.UniswapV3RouterAddress = '0xE592427A0AEce92De3Edee1F18E0157C05861564'
     this.wmaticAddress = '0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889'
     this.daiAddress = '0xcB1e72786A6eb3b44C2a2429e317c8a2462CFeb1'
     this.wmaticAmount = 1200000000000000
@@ -19,19 +28,24 @@ describe("Swappping", function () {
     const SwapContract = await ethers.getContractFactory("SwapWorkflow")
     this.swapContract = await SwapContract.deploy()
 
+    const SwapEngine = await ethers.getContractFactory("SwapEngine")
+    this.swapEngine = await SwapEngine.deploy()
+
     this.wmaticContract = await new ethers.Contract(this.wmaticAddress, this.wmaticABI, ethers.provider)
   })
 
-  it("Approve the router to call functions", async () => {
+  it("Approve the quickswap router to call functions", async () => {
     await expect(this.swapContract.connect(this.Alice).approveSwapToProtocol(
       this.wmaticAddress,
       this.wmaticAmount
     )).emit(this.swapContract, "TokensSwapApproved")
-      .withArgs(this.routerAddress, this.wmaticAddress, this.wmaticAmount)
+      .withArgs(this.quickswapRouterAddress, this.wmaticAddress, this.wmaticAmount)
   })
 
   it("Swap on Quickswap", async () => {
-    await this.wmaticContract.connect(this.Alice).approve(this.swapContract.address, this.wmaticAmount)
+    await expect(this.wmaticContract.connect(this.Alice).approve(this.swapContract.address, this.wmaticAmount))
+      .emit(this.wmaticContract, "Approval")
+      .withArgs(this.Alice.address, this.swapContract.address, this.wmaticAmount)
 
     await expect(this.swapContract.connect(this.Alice).swap(
       this.Alice.address,
@@ -41,5 +55,53 @@ describe("Swappping", function () {
       100000
     )).emit(this.swapContract, "TokensSwapped")
       .withArgs(this.wmaticAddress, this.daiAddress, this.Alice.address)
+  })
+
+  it("Approve the uniswap v2 router to call functions", async () => {
+    await expect(this.swapEngine.connect(this.Alice).approveSwapOnEngines(
+      this.wmaticAddress,
+      this.wmaticAmount,
+      this.enginTypes.UniswapV2
+    )).emit(this.swapEngine, "TokensApprovedOnUniswapV2")
+      .withArgs(this.UniswapV2RouterAddress, this.wmaticAddress, this.wmaticAmount)
+  })
+
+  it("Swap on Uniswap2", async () => {
+    await expect(this.wmaticContract.connect(this.Alice).approve(this.swapEngine.address, this.wmaticAmount))
+      .emit(this.swapEngine, "Approval")
+      .withArgs(this.Alice.address, this.swapEngine.address, this.wmaticAmount)
+
+    await expect(this.swapEngine.connect(this.Alice).swapOnUniswapV2(
+      this.Alice.address,
+      this.wmaticAddress,
+      this.daiAddress,
+      this.wmaticAmount,
+      this.enginTypes.UniswapV2
+    )).emit(this.swapEngine, "TokensSwappedOnUniswapV2")
+      .emit(this.wmaticAddress, this.daiAddress, this.Alice.address)
+  })
+
+  it("Approve the uniswap v3 router to call functions", async () => {
+    await expect(this.swapEngine.connect(this.Alice).approveSwapOnEngines(
+      this.wmaticAddress,
+      this.wmaticAmount,
+      this.enginTypes.UniswapV3
+    )).emit(this.swapEngine, "TokensApprovedOnUniswapV3")
+      .withArgs(this.UniswapV3RouterAddress, this.wmaticAddress, this.wmaticAmount)
+  })
+
+  it("Swap on Uniswap3", async () => {
+    await expect(this.wmaticContract.connect(this.Alice).approve(this.swapEngine.address, this.wmaticAmount))
+      .emit(this.swapEngine, "Approval")
+      .withArgs(this.Alice.address, this.swapEngine.address, this.wmaticAmount)
+
+    await expect(this.swapEngine.connect(this.Alice).swapOnUniswapV3(
+      this.Alice.address,
+      this.wmaticAddress,
+      this.daiAddress,
+      this.wmaticAmount,
+      this.enginTypes.UniswapV3
+    )).emit(this.swapEngine, "TokensSwappedOnUniswapV3")
+      .emit(this.wmaticAddress, this.daiAddress, this.Alice.address)
   })
 });
