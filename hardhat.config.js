@@ -18,10 +18,20 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
+
+const CHAIN_IDS = {
+  hardhat: 31337,
+};
+
 module.exports = {
   defaultNetwork: "mumbai",
   networks: {
     hardhat: {
+      chainId: CHAIN_IDS.hardhat,
+      forking: {
+        url: 'https://polygon-mumbai.g.alchemy.com/v2/kT2O74iAAnRY5ovq2_ZpyA56AsjrUqKm',
+        blockNumber: 30346312,
+      }
     },
     mumbai: {
       url: process.env.POLYGON_MUMBAI_RPC_PROVIDER,
