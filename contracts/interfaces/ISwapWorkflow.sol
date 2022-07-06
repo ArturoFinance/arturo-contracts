@@ -23,6 +23,6 @@ interface ISwapWorkflow {
         address _tokenOut,
         uint _amountIn,
         uint _amountOutMin
-    ) external;
+    ) external returns (uint[] memory amountOut);
 
 }
