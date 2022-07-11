@@ -193,7 +193,7 @@ contract SwapEngine {
         uint256 _amountIn,
         SwapEngines engineType
     ) external {
-        require(engineType == SwapEngines.UniswapV3, "Unknown swap function");
+        require(engineType == SwapEngines.Apeswap, "Unknown swap function");
 
         IERC20(_tokenIn).transferFrom(_owner, address(this), _amountIn);
         address[] memory path = _getPath(_tokenIn, _tokenOut);
