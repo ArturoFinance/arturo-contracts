@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import '@uniswap/v3-periphery/contracts/base/LiquidityManagement.sol';
 import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
+import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
 
 interface IApeRouter {
     function addLiquidity(
@@ -37,7 +38,10 @@ contract LiquidityProvide {
         UniswapV3
     }
 
+    // tokens
     address private constant WMATIC = 0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889;
+
+    // routers
     address private constant APESWAP_ROUTER = 0xC0788A3aD43d79aa53B09c2EaCc313A787d1d607;
     address private constant UNISWAP_V2_ROUTER = 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45;
     address private constant UNISWAP_V3_ROUTER = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
@@ -149,6 +153,23 @@ contract LiquidityProvide {
                 );
 
             emit LiquidityAdded(UNISWAP_V2_ROUTER, amountA, amountB, liquidity);
+        } else if (pType == ProtocolTypes.UniswapV3) {
+            LiquidityManagement.AddLiquidityParams liquidityParams = LiquidityManamgement.AddLiquidityParams({
+                token0: _tokenA,
+                token1: _tokenB,
+                fee: 3000,
+                recipient: _owner,
+                tickLower: 1,
+                tickUpper: 1,
+                amount0Desired: _amountA,
+                amount1Desired: _amoutnB,
+                amount0Min: 1,
+                amount1Min: 1
+            });
+
+            (uint128 liquidity, , ,) = LiquidityManagement.addLiquidity(liquidityParams);
+
+            emit LiquidityAdded(UNISWAP_V3_ROUTER, amountA, amountB, liquidity);
         } else if (pType == ProtocolTypes.Quickswap) {
             (uint amountA, uint amountB, uint liquidity) = IUniswapV2Router02(QUICKSWAP_ROUTER)
                 .addLiquidity(
@@ -204,6 +225,10 @@ contract LiquidityProvide {
             );
 
             emit LiquidityRemoved(UNISWAP_V2_ROUTER, amountA, amountB);
+        } else if (pType == ProtocolTypes.UniswapV3) {
+            (uint256 amountA, uint256 amountB) = IUniswapV3Pool(UNISWAP_V3_ROUTER).burn(1, 1, liquidity);
+
+            emit LiquidityRemoved(UNISWAP_V3_ROUTER, amountA, amountB);
         } else if (pType == ProtocolTypes.Quickswap) {
             (uint amountA, uint amountB) = IUniswapV2Router02(QUICKSWAP_ROUTER).removeLiquidity(
                 _tokenA,
