@@ -1,9 +1,9 @@
 const { ethers } = require("hardhat")
 
 async function main() {
-  const SwapEngine = await ethers.getContractFactory("SwapEngine");
-  const swapEngine = await SwapEngine.deploy()
-  console.log("VWAPcomponent Address: ", swapEngine.address);
+  const LiquidityProvide = await ethers.getContractFactory("LiquidityProvide");
+  const liquidityProvide = await LiquidityProvide.deploy()
+  console.log("LiquidityProvide Address: ", liquidityProvide.address);
 }
 
 main()
