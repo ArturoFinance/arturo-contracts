@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import "hardhat/console.sol";
 
 interface IApeRouter {
     function addLiquidity(
@@ -41,10 +42,10 @@ contract LiquidityProvide {
     address private constant QUICKSWAP_ROUTER = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;
 
 
-    event LiquidityAdded(address protocol, uint256 amountA, uint256 amountB, uint256 liquidity);
+    event LiquidityAdded(address protocol, uint256 amountA, uint256 amountB);
     event LiquidityAddApproved(address protocol, uint256 amountA, uint256 amountB);
     event LiquidityRemoved(address protocol, uint256 amountA, uint256 amountB);
-    event LiquidityRemoveApproved(address protocol, address pair, uint256 amount);
+    event LiquidityRemoveApproved(address protocol, address pair);
 
     function approveAddLiquidityToProtocol(
         address _tokenA,
@@ -76,11 +77,11 @@ contract LiquidityProvide {
         if (pType == ProtocolTypes.Apeswap) {
             IERC20(_pair).approve(APESWAP_ROUTER, liquidity);
 
-            emit LiquidityRemoveApproved(APESWAP_ROUTER, _pair, liquidity);
+            emit LiquidityRemoveApproved(APESWAP_ROUTER, _pair);
         } else if (pType == ProtocolTypes.Quickswap) {
             IERC20(_pair).approve(QUICKSWAP_ROUTER, liquidity);
 
-            emit LiquidityRemoveApproved(QUICKSWAP_ROUTER, _pair, liquidity);
+            emit LiquidityRemoveApproved(QUICKSWAP_ROUTER, _pair);
         }
     }
 
@@ -112,7 +113,7 @@ contract LiquidityProvide {
                     address(this),
                     block.timestamp
                 );
-            emit LiquidityAdded(APESWAP_ROUTER, _amountA, _amountB, liquidity);
+            emit LiquidityAdded(APESWAP_ROUTER, _amountA, _amountB);
         } else if (pType == ProtocolTypes.Quickswap) {
             (,, liquidity) = IUniswapV2Router02(QUICKSWAP_ROUTER)
                 .addLiquidity(
@@ -126,7 +127,7 @@ contract LiquidityProvide {
                     block.timestamp
                 );
 
-            emit LiquidityAdded(QUICKSWAP_ROUTER, _amountA, _amountB, liquidity);
+            emit LiquidityAdded(QUICKSWAP_ROUTER, _amountA, _amountB);
         }
     }
 
@@ -142,6 +143,8 @@ contract LiquidityProvide {
         require(_pair != address(0), "Workflow: invalid pair address");
 
         uint liquidity = IERC20(_pair).balanceOf(address(this));
+        console.log(liquidity);
+
         require(liquidity != 0, "Workflow: has no balance");
 
         if (pType == ProtocolTypes.Apeswap) {
