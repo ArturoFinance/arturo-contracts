@@ -1,9 +1,9 @@
 const { ethers } = require("hardhat")
 
 async function main() {
-  const VWAPcomponent = await ethers.getContractFactory("VWAPcomponent");
-  const component = await VWAPcomponent.deploy()
-  console.log("VWAPcomponent Address: ", component.address);
+  const LiquidityProvide = await ethers.getContractFactory("LiquidityProvide");
+  const liquidityProvide = await LiquidityProvide.deploy()
+  console.log("LiquidityProvide Address: ", liquidityProvide.address);
 }
 
 main()

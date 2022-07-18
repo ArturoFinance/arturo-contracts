@@ -31,7 +31,7 @@ contract SwapWorkflow is ISwapWorkflow {
         address _tokenOut,
         uint _amountIn,
         uint _amountOutMin
-    ) external override {
+    ) external override returns (uint[] memory amountOut) {
         IERC20(_tokenIn).transferFrom(_owner, address(this), _amountIn);
 
         address[] memory path;
@@ -46,7 +46,7 @@ contract SwapWorkflow is ISwapWorkflow {
             path[2] = _tokenOut;
         }
 
-        IUniswapV2Router02(ROUTER).swapExactTokensForTokens(
+        amountOut = IUniswapV2Router02(ROUTER).swapExactTokensForTokens(
             _amountIn,
             _amountOutMin,
             path,

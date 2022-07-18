@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol';
 import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
+import "hardhat/console.sol";
 
 interface IApeRouter {
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
@@ -139,20 +140,31 @@ contract SwapEngine {
         address _tokenOut,
         uint _amountIn,
         SwapEngines engineType
-    ) external {
+    ) external returns (uint amountOut) {
         require(engineType == SwapEngines.UniswapV2, "Please call a reasonable function");
-
         IERC20(_tokenIn).transferFrom(_owner, address(this), _amountIn);
 
-        address[] memory path = _getPath(_tokenIn, _tokenOut);
+        // address[] memory path = _getPath(_tokenIn, _tokenOut);
 
-        IUniswapV2Router02(UNISWAP_V2_ROUTER).swapExactTokensForTokens(
+        address[] memory path;
+        if (_tokenIn == WMATIC || _tokenOut == WMATIC) {
+            path = new address[](2);
+            path[0] = _tokenIn;
+            path[1] = _tokenOut;
+        } else {
+            path = new address[](3);
+            path[0] = _tokenIn;
+            path[1] = WMATIC;
+            path[2] = _tokenOut;
+        }
+
+        amountOut = IUniswapV2Router02(UNISWAP_V2_ROUTER).swapExactTokensForTokens(
             _amountIn,
-            1,
+            100000,
             path,
             _owner,
             block.timestamp
-        );
+        )[0];
 
         emit TokensSwappedOnUniswapV2(_tokenIn, _tokenOut, _owner);
     }

@@ -18,10 +18,23 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
+
+const CHAIN_IDS = {
+  hardhat: 31337,
+};
+
 module.exports = {
-  defaultNetwork: "mumbai",
+  defaultNetwork: "localhost",
   networks: {
+    localhost: {
+      url: "http://127.0.0.1:8545"
+    },
     hardhat: {
+      chainId: CHAIN_IDS.hardhat,
+      forking: {
+        url: 'https://polygon-mumbai.g.alchemy.com/v2/kT2O74iAAnRY5ovq2_ZpyA56AsjrUqKm',
+        blockNumber: 27164003,
+      }
     },
     mumbai: {
       url: process.env.POLYGON_MUMBAI_RPC_PROVIDER,
@@ -29,15 +42,25 @@ module.exports = {
     }
   },
   solidity: {
-    version: "0.8.4",
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 200
+    compilers: [
+      {
+        version: "0.8.4",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200
+          }
+        }
+      },
+      {
+        version: "0.7.6"
       }
-    }
+    ],
   },
   etherscan: {
     apiKey: process.env.POLYGONSCAN_API_KEY,
+  },
+  mocha: {
+    timeout: 90000
   }
 };
