@@ -17,7 +17,7 @@ contract UniswapLiquidity {
     address private constant UNISWAP_V3_ROUTER = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
 
 
-    event LiquidityAdded(address protocol, uint256 amountA, uint256 amountB, uint256 liquidity);
+    event LiquidityAdded(address protocol);
     event LiquidityAddApproved(address protocol, uint256 amountA, uint256 amountB);
     event LiquidityRemoved(address protocol, uint256 amountA, uint256 amountB);
     event LiquidityRemoveApproved(address protocol, address pair, uint256 amount);
@@ -67,7 +67,7 @@ contract UniswapLiquidity {
         uint _amountA,
         uint _amountB,
         ProtocolTypes pType
-    ) external returns (uint liquidity) {
+    ) external {
         require(_tokenA != address(0), "Workflow: invalid token address");
         require(_tokenB != address(0), "Workflow: invalid token address");
         require(_amountA != 0, "Workflow: token amount should not be zero");
@@ -77,7 +77,7 @@ contract UniswapLiquidity {
         IERC20(_tokenB).transferFrom(_owner, address(this), _amountB);
 
         if (pType == ProtocolTypes.UniswapV2) {
-            (,, liquidity) = IUniswapV2Router02(UNISWAP_V2_ROUTER)
+            IUniswapV2Router02(UNISWAP_V2_ROUTER)
                 .addLiquidity(
                     _tokenA,
                     _tokenB,
@@ -89,9 +89,9 @@ contract UniswapLiquidity {
                     block.timestamp
                 );
 
-            emit LiquidityAdded(UNISWAP_V2_ROUTER, amountA, amountB, liquidity);
+            emit LiquidityAdded(UNISWAP_V2_ROUTER);
         } else if (pType == ProtocolTypes.UniswapV3) {
-            LiquidityManagement.AddLiquidityParams liquidityParams = LiquidityManamgement.AddLiquidityParams({
+            LiquidityManagement.AddLiquidityParams memory liquidityParams = LiquidityManagement.AddLiquidityParams({
                 token0: _tokenA,
                 token1: _tokenB,
                 fee: 3000,
@@ -99,14 +99,19 @@ contract UniswapLiquidity {
                 tickLower: 1,
                 tickUpper: 1,
                 amount0Desired: _amountA,
-                amount1Desired: _amoutnB,
+                amount1Desired: _amountB,
                 amount0Min: 1,
                 amount1Min: 1
             });
 
-            (liquidity, , ,) = LiquidityManagement.addLiquidity(liquidityParams);
+            // (
+            //     uint128 liquidity,
+            //     uint256 amount0,
+            //     uint256 amount1,
+            //     IUniswapV3Pool pool
+            // ) = LiquidityManagement.addLiquidity(liquidityParams);
 
-            emit LiquidityAdded(UNISWAP_V3_ROUTER, amountA, amountB, liquidity);
+            emit LiquidityAdded(UNISWAP_V3_ROUTER);
         }
     }
 
@@ -124,8 +129,8 @@ contract UniswapLiquidity {
         uint liquidity = IERC20(_pair).balanceOf(address(this));
         require(liquidity != 0, "Workflow: has no balance");
 
-        if (pType == ProtocolTypes.Apeswap) {
-            (uint amountA, uint amountB) = IApeRouter(APESWAP_ROUTER).removeLiquidity(
+        if (pType == ProtocolTypes.UniswapV2) {
+            (uint amountA, uint amountB) = IUniswapV2Router02(UNISWAP_V2_ROUTER).removeLiquidity(
                 _tokenA,
                 _tokenB,
                 liquidity,
@@ -135,35 +140,11 @@ contract UniswapLiquidity {
                 block.timestamp
             );
 
-            emit LiquidityRemoved(APESWAP_ROUTER, amountA, amountB);
-        } else if (pType == ProtocolTypes.Quickswap) {
-            (uint amountA, uint amountB) = IUniswapV2Router02(QUICKSWAP_ROUTER).removeLiquidity(
-                _tokenA,
-                _tokenB,
-                liquidity,
-                1,
-                1,
-                msg.sender,
-                block.timestamp
-            );
-
             emit LiquidityRemoved(UNISWAP_V2_ROUTER, amountA, amountB);
+        } else if (pType == ProtocolTypes.UniswapV3) {
+            (uint256 amountA, uint256 amountB) = IUniswapV3Pool(UNISWAP_V3_ROUTER).burn(1, 1, uint128(liquidity));
+
+            emit LiquidityRemoved(UNISWAP_V3_ROUTER, amountA, amountB);
         }
-        // } else if (pType == ProtocolTypes.UniswapV2) {
-        //     (uint amountA, uint amountB) = IUniswapV2Router02(UNISWAP_V2_ROUTER).removeLiquidity(
-        //         _tokenA,
-        //         _tokenB,
-        //         liquidity,
-        //         1,
-        //         1,
-        //         _owner,
-        //         block.timestamp
-        //     );
-
-        //     emit LiquidityRemoved(UNISWAP_V2_ROUTER, amountA, amountB);
-        // } else if (pType == ProtocolTypes.UniswapV3) {
-        //     (uint256 amountA, uint256 amountB) = IUniswapV3Pool(UNISWAP_V3_ROUTER).burn(1, 1, liquidity);
-
-        //     emit LiquidityRemoved(UNISWAP_V3_ROUTER, amountA, amountB);
     }
 }
